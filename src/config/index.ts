@@ -9,7 +9,7 @@ export default {
     : process.env.AUTH_REDIRECT_URL ?? "",
   clientUrl: isProduction
     ? process.env.PROD_CLIENT_URL
-    : process.env.CLIENT_URL ?? "http://localhost:5173",
+    : process.env.CLIENT_URL ?? "http://localhost:3000",
   redirectAuthUriSuccess: isProduction
     ? process.env.PROD_AUTH_REDIRECT_URL_SUCCESS
     : process.env.AUTH_REDIRECT_URL_SUCCESS ?? "",
