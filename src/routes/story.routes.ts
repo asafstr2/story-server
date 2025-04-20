@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
-import { generateStory, getStory, getUserStories } from '../controllers/story.controller';
+import { generateStory, getStory, getUserStories, selectedImageCloudineryUpload, generatePdf } from '../controllers/story.controller';
 import { authWithLogging } from '../controllers/passport';
 
 const router = Router();
@@ -23,9 +23,11 @@ const upload = multer({
 
 // Protected routes (require authentication)
 router.post('/create', authWithLogging('jwt', {}), upload.single('image'), generateStory);
+router.post('/upload-images', authWithLogging('jwt', {}), selectedImageCloudineryUpload);
 router.get('/user/stories', authWithLogging('jwt', {}), getUserStories);
 
 // Public routes
 router.get('/:id', getStory);
+router.get('/:id/pdf', generatePdf);
 
 export default router; 

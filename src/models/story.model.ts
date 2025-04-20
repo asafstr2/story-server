@@ -26,7 +26,7 @@ const storySchema = new Schema<IStory>({
     required: true,
   },
   images: {
-    type: [{ type: String }],
+    type: [{ type: Object }],
     required: true,
   },
   heroImage: {
