@@ -71,8 +71,8 @@ export const generateStory = async (
     if (!hasPaidSubscription) {
       const subscriptionDetails = await getSubscriptionDetails(user._id);
       if (subscriptionDetails.hasSubscription) {
-        hasPaidSubscription = subscriptionDetails.hasSubscription === "active";
-        user.subscription = subscriptionDetails.hasSubscription;
+        hasPaidSubscription = subscriptionDetails.hasSubscription;
+        user.subscription = subscriptionDetails.status;
         await user.save();
       }
     }
@@ -516,8 +516,8 @@ export const generatePdf = async (
     if (!hasPaidSubscription) {
       const subscriptionDetails = await getSubscriptionDetails(user._id);
       if (subscriptionDetails.hasSubscription) {
-        hasPaidSubscription = subscriptionDetails.hasSubscription === "active";
-        user.subscription = subscriptionDetails.hasSubscription;
+        hasPaidSubscription = subscriptionDetails.hasSubscription;
+        user.subscription = subscriptionDetails.status;
         await user.save();
       }
       if (!hasPaidSubscription) {
