@@ -25,15 +25,16 @@ export const generateStory = async (
     }
 
     // Check if user has a paid subscription
-    const hasPaidSubscription = user.subscription?.status === 'active';
-    
+    const hasPaidSubscription = user.subscription?.status === "active";
+
     // If user doesn't have a paid subscription, check story count
     if (!hasPaidSubscription) {
       const storyCount = await Story.countDocuments({ userId: user._id });
-      if (storyCount >= 2) {
-        return res.status(403).json({ 
-          message: "Free users are limited to 2 stories. Please upgrade your subscription to create more.",
-          limitReached: true
+      if (storyCount >= Number(process.env.NUMBER_OF_STORIES_LIMIT)) {
+        return res.status(403).json({
+          message:
+            "Free users are limited to 2 stories. Please upgrade your subscription to create more.",
+          limitReached: true,
         });
       }
     }
@@ -264,7 +265,7 @@ export const generatePdf = async (
     const doc = new PDFDocument({
       size: "A5",
       margins: { top: 50, bottom: 50, left: 70, right: 70 },
-      autoFirstPage: false
+      autoFirstPage: false,
     });
 
     // Set the response headers for PDF download
@@ -285,34 +286,27 @@ export const generatePdf = async (
 
     // Add title - position in center
     const titleY = doc.page.height / 3;
-    doc
-      .fillColor("white")
-      .font("Helvetica-Bold")
-      .fontSize(24);
-      
+    doc.fillColor("white").font("Helvetica-Bold").fontSize(24);
+
     doc.text(story.title, 0, titleY, {
       align: "center",
-      width: doc.page.width
+      width: doc.page.width,
     });
 
     // Add subtitle
-    doc
-      .font("Helvetica-Oblique")
-      .fontSize(16);
-      
+    doc.font("Helvetica-Oblique").fontSize(16);
+
     doc.text("A Magical Adventure", 0, titleY + 40, {
       align: "center",
-      width: doc.page.width
+      width: doc.page.width,
     });
 
     // Add footer
-    doc
-      .fontSize(8)
-      .font("Helvetica");
-      
+    doc.fontSize(8).font("Helvetica");
+
     doc.text("Created with Magical Story Creator", 0, doc.page.height - 50, {
       align: "center",
-      width: doc.page.width
+      width: doc.page.width,
     });
 
     // Add a new page for the title page
@@ -322,14 +316,11 @@ export const generatePdf = async (
     doc.fillColor("#F9F4E8").rect(0, 0, doc.page.width, doc.page.height).fill();
 
     // Title
-    doc
-      .fillColor("black")
-      .font("Helvetica-Bold")
-      .fontSize(20);
-      
+    doc.fillColor("black").font("Helvetica-Bold").fontSize(20);
+
     doc.text(story.title, 0, 50, {
       align: "center",
-      width: doc.page.width
+      width: doc.page.width,
     });
 
     // Process content pages
@@ -344,10 +335,8 @@ export const generatePdf = async (
         .fill();
 
       // Page number
-      doc
-        .fillColor("#969696")
-        .fontSize(8);
-        
+      doc.fillColor("#969696").fontSize(8);
+
       doc.text(`${i + 1}`, doc.page.width - 40, 30);
 
       // Add image if available
@@ -355,9 +344,10 @@ export const generatePdf = async (
         try {
           const imageAsset = story.images[i];
           // Prefer secure_url if available, then url, or use the string directly
-          const imageUrlString = typeof imageAsset === "string" 
-            ? imageAsset 
-            : imageAsset.secure_url || imageAsset.url;
+          const imageUrlString =
+            typeof imageAsset === "string"
+              ? imageAsset
+              : imageAsset.secure_url || imageAsset.url;
 
           if (!imageUrlString) {
             throw new Error("Invalid image URL format");
@@ -368,14 +358,14 @@ export const generatePdf = async (
           });
 
           const imageBuffer = Buffer.from(imageResponse.data as ArrayBuffer);
-          
+
           // Calculate image dimensions - center better
           const imgWidth = doc.page.width - 140; // Reduced width to prevent overflow
           const imgHeight = (doc.page.height - 200) / 2;
-          
+
           // Center the image horizontally by calculating its position
           const imgX = (doc.page.width - imgWidth) / 2;
-          
+
           // Add image with explicit X position
           doc.image(imageBuffer, imgX, 50, {
             fit: [imgWidth, imgHeight],
@@ -385,44 +375,35 @@ export const generatePdf = async (
           // Add text below the image - adjust text position to prevent cutoff
           const textY = 50 + imgHeight + 20; // Position text below image with padding
           const textX = (doc.page.width - (doc.page.width - 140)) / 2; // Center text
-          
-          doc
-            .fillColor("black")
-            .fontSize(10)
-            .font("Helvetica");
-            
+
+          doc.fillColor("black").fontSize(10).font("Helvetica");
+
           doc.text(story.content[i], textX, textY, {
             align: "justify",
-            width: doc.page.width - 140 // Same width as image
+            width: doc.page.width - 140, // Same width as image
           });
         } catch (error) {
           console.error("Error adding image to PDF:", error);
 
           // Just add text if image fails
           const textX = (doc.page.width - (doc.page.width - 140)) / 2; // Center text
-          
-          doc
-            .fillColor("black")
-            .fontSize(10)
-            .font("Helvetica");
-            
+
+          doc.fillColor("black").fontSize(10).font("Helvetica");
+
           doc.text(story.content[i], textX, 50, {
             align: "justify",
-            width: doc.page.width - 140
+            width: doc.page.width - 140,
           });
         }
       } else {
         // Just add text if no image
         const textX = (doc.page.width - (doc.page.width - 140)) / 2; // Center text
-        
-        doc
-          .fillColor("black")
-          .fontSize(10)
-          .font("Helvetica");
-          
+
+        doc.fillColor("black").fontSize(10).font("Helvetica");
+
         doc.text(story.content[i], textX, 50, {
           align: "justify",
-          width: doc.page.width - 140
+          width: doc.page.width - 140,
         });
       }
     }
@@ -431,14 +412,11 @@ export const generatePdf = async (
     doc.addPage();
     doc.fillColor("#2E7D32").rect(0, 0, doc.page.width, doc.page.height).fill();
 
-    doc
-      .fillColor("white")
-      .fontSize(16)
-      .font("Helvetica-Bold");
-      
+    doc.fillColor("white").fontSize(16).font("Helvetica-Bold");
+
     doc.text("The End", 0, doc.page.height / 2, {
       align: "center",
-      width: doc.page.width
+      width: doc.page.width,
     });
 
     // Finalize the PDF and end the stream
