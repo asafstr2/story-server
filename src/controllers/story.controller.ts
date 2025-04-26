@@ -62,6 +62,7 @@ export const generateStory = async (
     // Get the authenticated user
     const user = req.user as IUser;
     const style = req.body.style;
+    
     if (!user) {
       return res.status(401).json({ message: "Authentication required" });
     }
@@ -176,7 +177,7 @@ export const generateStory = async (
     // Create story in database
     const story = await Story.create({
       userId: user._id, // Associate the story with the user
-      title: "A Magical Adventure",
+      title: req.body.title || "A Magical Adventure",
       content: paragraphs,
       images,
       heroImage: `data:image/jpeg;base64,${base64Image}`,
