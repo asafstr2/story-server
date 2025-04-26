@@ -8,6 +8,9 @@ import { uploadAsset } from "../services/cloudineryUploadFromLink";
 import { IUser } from "../models/user.model";
 import PDFDocument from "pdfkit";
 import axios from "axios";
+import { createHash } from "crypto";
+import NodeCache from "node-cache";
+import { getSubscriptionDetails } from "../services/stripe.service";
 
 //@ts-ignore
 const openai = new OpenAI();
@@ -24,6 +27,32 @@ const premiumNumberOfStoriesLimit = Number(
   process.env.NUMBER_OF_STORIES_LIMIT_PREMIUM_USER
 );
 
+// Create a cache for storing already processed images and prompts
+// TTL: 1 hour (3600 seconds)
+const imageCache = new NodeCache({ stdTTL: 3600, checkperiod: 600 });
+
+// Art style templates for more consistent results
+const artStyleTemplates = {
+  ghibli: {
+    systemPrompt:
+      "You are a master Studio Ghibli art director, trained to capture the magical realism, detailed environments, emotional storytelling, and distinctive character designs of Hayao Miyazaki and Isao Takahata. Your descriptions emphasize gentle color palettes, atmospheric elements, emotional expressiveness, and the harmonious relationship between nature and characters.",
+    styleGuide:
+      "Create this as a high-quality Studio Ghibli illustration with soft watercolor-like textures, atmospheric lighting (especially golden hour or dawn light rays), detailed natural elements (wind-blown grass, detailed clouds, water reflections), and the characteristic innocent but determined expressions of Ghibli protagonists. Include small magical details in the background that reward careful viewing.",
+  },
+  pixar: {
+    systemPrompt:
+      "You are a Pixar animation art director with expertise in creating emotionally resonant 3D animated scenes with vibrant colors, expressive characters, and carefully crafted lighting.",
+    styleGuide:
+      "Create this as a Pixar-inspired 3D illustration with vibrant colors, slightly exaggerated character features, dynamic lighting, and subtle emotional storytelling elements. The scene should feel both fantastical and believable, with careful attention to lighting that enhances the emotional tone.",
+  },
+  disney: {
+    systemPrompt:
+      "You are a Disney animation art director specializing in the classic 2D animated fairy tale aesthetic, with colorful, expressive characters and richly detailed fantasy environments.",
+    styleGuide:
+      "Create this as a Disney-inspired illustration with the classic fairy tale aesthetic - rich colors, expressive characters with large eyes, dynamic poses, and a magical environment with glowing elements. Include subtle storytelling details in the background that hint at the wider world.",
+  },
+};
+
 export const generateStory = async (
   req: Request,
   res: Response,
@@ -37,9 +66,22 @@ export const generateStory = async (
     }
 
     // Check if user has a paid subscription
-    const hasPaidSubscription = user.subscription?.status === "active";
-    const subscriptionType = user.subscription?.type;
+    let hasPaidSubscription = user.subscription?.status === "active";
+    if (!hasPaidSubscription) {
+      const subscriptionDetails = await getSubscriptionDetails(user._id);
+      if (subscriptionDetails.hasSubscription) {
+        hasPaidSubscription = subscriptionDetails.hasSubscription;
+        user.subscription = subscriptionDetails;
+        await user.save();
+      }
+    }
 
+    const subscriptionType = user.subscription?.type;
+    console.log({
+      subscriptionType,
+      hasPaidSubscription,
+      status: user.subscription?.status,
+    });
     // If user doesn't have a paid subscription, check story count
     const storyCount = await Story.countDocuments({ userId: user._id });
     if (!hasPaidSubscription) {
@@ -78,6 +120,7 @@ export const generateStory = async (
     if (!req.file) {
       throw new Error("No image file uploaded");
     }
+    console.log("validation  -done 5% of story");
 
     // Process the image
     const processedImage = await sharp(req.file.buffer)
@@ -86,7 +129,7 @@ export const generateStory = async (
     // Convert to base64
     const base64Image = processedImage.toString("base64");
     // Generate story using OpenAI
-
+    console.log("processing image -done 10% of story");
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
@@ -104,7 +147,7 @@ export const generateStory = async (
       ],
       max_tokens: 1000,
     });
-    console.log({ completion });
+    console.log("processing story -done 20% of story");
     const storyContent = completion.choices[0].message?.content;
 
     if (!storyContent) {
@@ -116,13 +159,14 @@ export const generateStory = async (
       .filter((p: string) => p.trim());
 
     // Generate images for each paragraph using DALL-E
+    console.log("processing images - starting  30% of story");
     const imagePromises: Promise<CloudinaryAsset>[] = paragraphs.map(
       (paragraph: string) =>
         convertImageToGhibli(base64Image, req.body.name ?? "Maya", paragraph)
     );
 
     const images = await Promise.all(imagePromises);
-    console.log({ images });
+    console.log("processing images -done 50% of story");
     // Create story in database
     const story = await Story.create({
       userId: user._id, // Associate the story with the user
@@ -131,7 +175,8 @@ export const generateStory = async (
       images,
       heroImage: `data:image/jpeg;base64,${base64Image}`,
     });
-    console.log({ story });
+    console.log("creating story -done 100% done");
+
     res.status(201).json(story);
   } catch (error) {
     console.log({ error });
@@ -157,69 +202,230 @@ export const getStory = async (
   }
 };
 
-// Assuming you have `base64Image` from req.body
+/**
+ * Converts an image to a stylized illustration based on a story paragraph.
+ * Enhanced with caching, parallel processing capabilities, and improved error handling.
+ *
+ * @param base64Image - Base64 encoded image
+ * @param username - Name of the character in the story
+ * @param paragraph - Story paragraph to base the illustration on
+ * @param style - Art style to use (default: 'ghibli')
+ * @param options - Additional options for image generation
+ * @returns Promise with CloudinaryAsset result
+ */
 const convertImageToGhibli = async (
   base64Image: string,
   username: string = "Maya",
-  paragraph: string
-) => {
-  // Step 1: Get detailed image description
-  const imageDescription = await openai.chat.completions.create({
-    model: "gpt-4o",
-    messages: [
-      {
-        role: "user",
-        content: [
+  paragraph: string,
+  style: "ghibli" | "pixar" | "disney" = "ghibli",
+  options: {
+    quality?: "standard" | "hd";
+    size?: "1024x1024" | "1792x1024" | "1024x1792";
+    forceRefresh?: boolean;
+  } = {}
+): Promise<CloudinaryAsset> => {
+  try {
+    // Set defaults for options
+    const imageQuality = options.quality || "hd";
+    const imageSize = options.size || "1024x1024";
+    const forceRefresh = options.forceRefresh || false;
+
+    // Create a cache key from inputs
+    const cacheKey = createHash("md5")
+      .update(
+        `${base64Image.substring(
+          0,
+          100
+        )}${username}${paragraph}${style}${imageQuality}${imageSize}`
+      )
+      .digest("hex");
+
+    // Try to get from cache unless force refresh is requested
+    if (!forceRefresh && imageCache.has(cacheKey)) {
+      console.log("Using cached image result");
+      return imageCache.get(cacheKey) as CloudinaryAsset;
+    }
+
+    // Select art style template
+    const styleTemplate = artStyleTemplates[style];
+
+    // Run description and prompt generation in parallel
+    const [imageDescription, paragraphAnalysis] = await Promise.all([
+      // Get detailed image description
+      openai.chat.completions.create({
+        model: "gpt-4o",
+        temperature: 0.7,
+        messages: [
           {
-            type: "text",
-            text: "Describe this image in detail for an illustrator to recreate in Studio Ghibli style.",
+            role: "system",
+            content: styleTemplate.systemPrompt,
           },
           {
-            type: "image_url",
-            image_url: {
-              url: `data:image/jpeg;base64,${base64Image}`,
-              detail: "high",
-            },
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: `Describe this image in rich, vivid detail as if directing an artist to recreate it in ${style} style. Focus on subject, environment, lighting, mood, and visual storytelling elements.`,
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:image/jpeg;base64,${base64Image}`,
+                  detail: "high",
+                },
+              },
+            ],
           },
         ],
-      },
-    ],
-  });
+      }),
 
-  const description = imageDescription.choices[0].message.content;
+      // Analyze paragraph for emotional and visual elements in parallel
+      openai.chat.completions.create({
+        model: "gpt-4o",
+        temperature: 0.6,
+        messages: [
+          {
+            role: "system",
+            content:
+              "You analyze text to extract key visual and emotional elements for illustration. Focus on emotional tone, key actions, setting details, color themes, lighting, and symbolism.",
+          },
+          {
+            role: "user",
+            content: `Extract the most important visual and emotional elements from this story paragraph that should be included in an illustration featuring ${username}:\n\n${paragraph}`,
+          },
+        ],
+      }),
+    ]);
 
-  // Step 2: Generate a storytelling-based prompt combining image + paragraph
-  const promptGeneration = await openai.chat.completions.create({
-    model: "gpt-4o",
-    messages: [
-      {
-        role: "user",
-        content: `Using the following image description and story paragraph, create a single detailed and emotionally rich prompt for generating a Studio Ghibli-style illustration:\n\nImage description: ${description}\n\nStory context: ${paragraph}`,
-      },
-    ],
-  });
-  const combinedPrompt = promptGeneration.choices[0].message.content;
-  console.log({ combinedPrompt });
+    // Extract results
+    const description =
+      imageDescription.choices[0]?.message?.content ||
+      "A child on an adventure in a magical world";
+    const visualElements =
+      paragraphAnalysis.choices[0]?.message?.content ||
+      "Emotional child on a magical adventure";
 
-  // Step 2: Generate Ghibli-style image from description
-  const ghibliImage = await openai.images.generate({
-    model: "dall-e-3",
-    prompt: `${combinedPrompt}`,
-    size: "1024x1024",
-    n: 1,
-  });
-  const imageUrls = ghibliImage.data.map((img: any) => img.url);
-  // Step 3: Upload generated image to Cloudinary
-  const uploadedImage = await uploadAsset({
-    imageUrls: imageUrls,
-    customPrompt: "storytime illustration",
-  });
+    // Generate enhanced storytelling prompt
+    const enhancedPromptResult = await openai.chat.completions.create({
+      model: "gpt-4o",
+      temperature: 0.8,
+      messages: [
+        {
+          role: "system",
+          content: `You are a master visual storyteller who creates art direction for ${style}-style illustrations. You combine character descriptions, emotional themes, and story contexts into vivid, detailed art prompts.`,
+        },
+        {
+          role: "user",
+          content: `Create a detailed, emotion-rich prompt for a ${style}-style illustration featuring ${username} that captures this moment in the story. 
+          
+Character description: ${description}
 
-  if (!uploadedImage || uploadedImage.length === 0) {
-    throw new Error("Failed to upload image to Cloudinary");
+Key story elements: ${visualElements}
+
+Story paragraph: ${paragraph}
+
+Your prompt should be highly detailed, emphasizing characteristic elements of ${style} style, emotional expressions, dynamic compositions, and atmospheric elements.`,
+        },
+      ],
+    });
+
+    const combinedPrompt =
+      enhancedPromptResult.choices[0]?.message?.content ||
+      `Create a ${style}-style illustration of ${username} experiencing: ${paragraph}`;
+
+    // Add specific style guidance
+    const finalPrompt = `${combinedPrompt}\n\n${styleTemplate.styleGuide}\n\nMain character name: ${username}`;
+
+    // Limit prompt length to 3900 characters to avoid "string too long" errors (max is 4000)
+    const limitedPrompt = finalPrompt.length > 3900 
+      ? finalPrompt.substring(0, 3900) 
+      : finalPrompt;
+
+    console.log(
+      "Generating illustration with prompt:",
+      limitedPrompt.substring(0, 100) + "..."
+    );
+
+    // Generate styled image
+    const generatedImage = await openai.images
+      .generate({
+        model: "dall-e-3",
+        prompt: limitedPrompt,
+        size: imageSize as any,
+        quality: imageQuality,
+        style: "vivid",
+        n: 1,
+      })
+      .catch((error) => {
+        console.error("DALL-E generation error:", error.message);
+        throw new Error(`Image generation failed: ${error.message}`);
+      });
+
+    if (!generatedImage.data || generatedImage.data.length === 0) {
+      throw new Error("Image generation returned no results");
+    }
+
+    const imageUrls = generatedImage.data.map((img: any) => img.url);
+
+    // Better error handling for Cloudinary upload with retry
+    let uploadedImage: CloudinaryAsset[] | undefined;
+    let retries = 0;
+    const maxRetries = 2;
+
+    while (retries <= maxRetries) {
+      try {
+        uploadedImage = await uploadAsset({
+          imageUrls: imageUrls,
+          customPrompt: `${username}'s ${style}-style story illustration`,
+        });
+
+        if (!uploadedImage || uploadedImage.length === 0) {
+          throw new Error("Empty response from Cloudinary");
+        }
+
+        break; // Exit loop on success
+      } catch (error) {
+        console.error(
+          `Cloudinary upload error (attempt ${retries + 1}/${maxRetries + 1}):`,
+          error
+        );
+        retries++;
+
+        if (retries > maxRetries) {
+          throw new Error(
+            `Failed to upload image after ${maxRetries + 1} attempts`
+          );
+        }
+
+        // Wait before retry (exponential backoff)
+        await new Promise((resolve) =>
+          setTimeout(resolve, 1000 * Math.pow(2, retries))
+        );
+      }
+    }
+
+    // Store result in cache - if we got here, uploadedImage must be defined
+    if (!uploadedImage || uploadedImage.length === 0) {
+      throw new Error("Failed to upload image to Cloudinary after retries");
+    }
+
+    const result = uploadedImage[0] as CloudinaryAsset;
+    imageCache.set(cacheKey, result);
+
+    return result;
+  } catch (error: any) {
+    console.error("Error in convertImageToGhibli:", error);
+
+    // More detailed error logging and handling
+    if (error.response) {
+      console.error("API Error Response:", {
+        status: error.response.status,
+        data: error.response.data,
+      });
+    }
+
+    throw error;
   }
-
-  return uploadedImage[0] as CloudinaryAsset;
 };
 
 export async function selectedImageCloudineryUpload(
