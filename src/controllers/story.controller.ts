@@ -30,10 +30,10 @@ export const generateStory = async (
     // If user doesn't have a paid subscription, check story count
     if (!hasPaidSubscription) {
       const storyCount = await Story.countDocuments({ userId: user._id });
-      if (storyCount >= Number(process.env.NUMBER_OF_STORIES_LIMIT)) {
+      const numberOfStoriesLimit = Number(process.env.NUMBER_OF_STORIES_LIMIT);
+      if (storyCount >= numberOfStoriesLimit) {
         return res.status(403).json({
-          message:
-            "Free users are limited to 2 stories. Please upgrade your subscription to create more.",
+          message: `Free users are limited to ${numberOfStoriesLimit} stories. Please upgrade your subscription to create more.`,
           limitReached: true,
         });
       }
