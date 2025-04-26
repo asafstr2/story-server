@@ -10,7 +10,9 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
 });
 
 // Premium subscription price ID from Stripe dashboard
+const PLUS_PRICE_ID = process.env.STRIPE_PLUS_PRICE_ID || "";
 const PREMIUM_PRICE_ID = process.env.STRIPE_PREMIUM_PRICE_ID || "";
+const PRO_PRICE_ID = process.env.STRIPE_PRO_PRICE_ID || "";
 
 /**
  * Create or retrieve a Stripe customer for a user
@@ -217,7 +219,7 @@ export const getUserPaymentHistory = async (
 export const createSubscription = async (
   userId: string,
   paymentMethodId: string,
-  priceId: string = PREMIUM_PRICE_ID
+  priceId: string = PLUS_PRICE_ID
 ): Promise<any> => {
   try {
     const user = await User.findById(userId);

@@ -6,13 +6,21 @@ export interface IUser extends Document {
   googleOAuthId?: string;
   profilePicture?: string;
   name?: string;
-  
+
   // Stripe payment fields
   stripeCustomerId?: string;
   subscription?: {
-    status?: 'active' | 'canceled' | 'past_due' | 'trialing' | 'unpaid';
+    status?: "active" | "canceled" | "past_due" | "trialing" | "unpaid";
     planId?: string;
     currentPeriodEnd?: Date;
+    type?: "free" | "plus" | "pro" | "premium";
+  };
+  billingAddress?: {
+    country?: string;
+    city?: string;
+    state?: string;
+    postalCode?: string;
+    address?: string;
   };
   paymentMethod?: {
     id?: string;
@@ -21,7 +29,7 @@ export interface IUser extends Document {
     expMonth?: number;
     expYear?: number;
   };
-  
+
   createdAt: Date;
   updatedAt: Date;
   id: string;
@@ -51,7 +59,7 @@ const userSchema = new Schema<IUser>(
     name: {
       type: String,
     },
-    
+
     // Stripe payment fields
     stripeCustomerId: {
       type: String,
@@ -59,10 +67,11 @@ const userSchema = new Schema<IUser>(
     subscription: {
       status: {
         type: String,
-        enum: ['active', 'canceled', 'past_due', 'trialing', 'unpaid'],
+        enum: ["active", "canceled", "past_due", "trialing", "unpaid"],
       },
       planId: String,
       currentPeriodEnd: Date,
+      type: String,
     },
     paymentMethod: {
       id: String,
@@ -71,18 +80,25 @@ const userSchema = new Schema<IUser>(
       expMonth: Number,
       expYear: Number,
     },
+    billingAddress: {
+      country: String,
+      city: String,
+      state: String,
+      postalCode: String,
+      address: String,
+    },
   },
   { timestamps: true }
 );
 
 // Add virtual property for id that returns _id as string
-userSchema.virtual('id').get(function() {
+userSchema.virtual("id").get(function () {
   return this._id.toHexString();
 });
 
 // Ensure virtual fields are included when converting to JSON
-userSchema.set('toJSON', {
-  virtuals: true
+userSchema.set("toJSON", {
+  virtuals: true,
 });
 
 export const User = model<IUser>("User", userSchema);

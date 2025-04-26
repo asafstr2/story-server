@@ -11,6 +11,10 @@ import axios from "axios";
 
 //@ts-ignore
 const openai = new OpenAI();
+const freeNumberOfStoriesLimit = Number(process.env.NUMBER_OF_STORIES_LIMIT_FREE_USER);
+const plusNumberOfStoriesLimit = Number(process.env.NUMBER_OF_STORIES_LIMIT_PLUS_USER);
+const proNumberOfStoriesLimit = Number(process.env.NUMBER_OF_STORIES_LIMIT_PRO_USER);
+const premiumNumberOfStoriesLimit = Number(process.env.NUMBER_OF_STORIES_LIMIT_PREMIUM_USER);
 
 export const generateStory = async (
   req: Request,
@@ -26,17 +30,39 @@ export const generateStory = async (
 
     // Check if user has a paid subscription
     const hasPaidSubscription = user.subscription?.status === "active";
+    const subscriptionType = user.subscription?.type;
 
     // If user doesn't have a paid subscription, check story count
     if (!hasPaidSubscription) {
       const storyCount = await Story.countDocuments({ userId: user._id });
-      const numberOfStoriesLimit = Number(process.env.NUMBER_OF_STORIES_LIMIT);
-      if (storyCount >= numberOfStoriesLimit) {
+      if (storyCount >= freeNumberOfStoriesLimit) {
         return res.status(403).json({
-          message: `Free users are limited to ${numberOfStoriesLimit} stories. Please upgrade your subscription to create more.`,
+          message: `Free users are limited to ${freeNumberOfStoriesLimit} stories. Please upgrade your subscription to create more.`,
           limitReached: true,
         });
       }
+      if (storyCount >= plusNumberOfStoriesLimit) {
+        return res.status(403).json({
+          message: `Plus users are limited to ${plusNumberOfStoriesLimit} stories. Please upgrade your subscription to create more.`,
+          limitReached: true,
+        });
+      }
+      if (storyCount >= proNumberOfStoriesLimit) {
+        return res.status(403).json({
+          message: `Pro users are limited to ${proNumberOfStoriesLimit} stories. Please upgrade your subscription to create more.`,
+          limitReached: true,
+        });
+      }
+      if (storyCount >= premiumNumberOfStoriesLimit) {
+        return res.status(403).json({
+          message: `Premium users are limited to ${premiumNumberOfStoriesLimit} stories. Please upgrade your subscription to create more.`,
+          limitReached: true,
+        });
+      }
+
+      
+      
+      
     }
 
     if (!req.file) {
