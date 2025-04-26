@@ -24,6 +24,7 @@ export interface IUser extends Document {
   
   createdAt: Date;
   updatedAt: Date;
+  id: string;
 }
 
 const userSchema = new Schema<IUser>(
@@ -73,5 +74,15 @@ const userSchema = new Schema<IUser>(
   },
   { timestamps: true }
 );
+
+// Add virtual property for id that returns _id as string
+userSchema.virtual('id').get(function() {
+  return this._id.toHexString();
+});
+
+// Ensure virtual fields are included when converting to JSON
+userSchema.set('toJSON', {
+  virtuals: true
+});
 
 export const User = model<IUser>("User", userSchema);

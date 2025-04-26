@@ -75,7 +75,7 @@ export const getUserSubscription = async (
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const subscriptionDetails = await getSubscriptionDetails(user.id);
+    const subscriptionDetails = await getSubscriptionDetails(user._id);
     res.status(200).json(subscriptionDetails);
   } catch (error: any) {
     console.error("Error in getUserSubscription:", error);

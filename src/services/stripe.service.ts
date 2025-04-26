@@ -1,16 +1,16 @@
-import Stripe from 'stripe';
-import { User } from '../models/user.model';
-import { Payment } from '../models/payment.model';
-import { IUser } from '../models/user.model';
-import { IPayment } from '../models/payment.model';
+import Stripe from "stripe";
+import { User } from "../models/user.model";
+import { Payment } from "../models/payment.model";
+import { IUser } from "../models/user.model";
+import { IPayment } from "../models/payment.model";
 
 // Initialize Stripe with the API key from environment variables
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2023-10-16', // Use the latest stable API version
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
+  apiVersion: "2023-10-16", // Use the latest stable API version
 });
 
 // Premium subscription price ID from Stripe dashboard
-const PREMIUM_PRICE_ID = process.env.STRIPE_PREMIUM_PRICE_ID || '';
+const PREMIUM_PRICE_ID = process.env.STRIPE_PREMIUM_PRICE_ID || "";
 
 /**
  * Create or retrieve a Stripe customer for a user
@@ -19,7 +19,7 @@ export const getOrCreateCustomer = async (userId: string): Promise<string> => {
   try {
     const user = await User.findById(userId);
     if (!user) {
-      throw new Error('User not found');
+      throw new Error("User not found");
     }
 
     // If the user already has a Stripe customer ID, return it
@@ -42,7 +42,7 @@ export const getOrCreateCustomer = async (userId: string): Promise<string> => {
 
     return customer.id;
   } catch (error) {
-    console.error('Error in getOrCreateCustomer:', error);
+    console.error("Error in getOrCreateCustomer:", error);
     throw error;
   }
 };
@@ -53,7 +53,7 @@ export const getOrCreateCustomer = async (userId: string): Promise<string> => {
 export const processPayment = async (
   userId: string,
   amount: number,
-  currency: string = 'usd',
+  currency: string = "usd",
   paymentMethodId: string,
   description?: string,
   metadata?: Record<string, any>
@@ -79,7 +79,7 @@ export const processPayment = async (
 
     // Retrieve charge data if payment intent is succeeded
     let receiptUrl = undefined;
-    if (paymentIntent.status === 'succeeded') {
+    if (paymentIntent.status === "succeeded") {
       const charges = await stripe.charges.list({
         payment_intent: paymentIntent.id,
       });
@@ -102,14 +102,16 @@ export const processPayment = async (
     await payment.save();
 
     // If payment successful, update user's payment method
-    if (paymentIntent.status === 'succeeded') {
-      const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId);
+    if (paymentIntent.status === "succeeded") {
+      const paymentMethod = await stripe.paymentMethods.retrieve(
+        paymentMethodId
+      );
       await updateUserPaymentMethod(userId, paymentMethod);
     }
 
     return payment;
   } catch (error) {
-    console.error('Error in processPayment:', error);
+    console.error("Error in processPayment:", error);
     throw error;
   }
 };
@@ -126,12 +128,12 @@ export const processRefund = async (
     // Find the payment record
     const payment = await Payment.findById(paymentId);
     if (!payment) {
-      throw new Error('Payment not found');
+      throw new Error("Payment not found");
     }
 
     // Check if payment is already refunded
-    if (payment.status === 'refunded') {
-      throw new Error('Payment already refunded');
+    if (payment.status === "refunded") {
+      throw new Error("Payment already refunded");
     }
 
     // Process the refund in Stripe
@@ -145,19 +147,19 @@ export const processRefund = async (
     const refundAmount = amount || payment.amount;
     payment.refundedAmount = (payment.refundedAmount || 0) + refundAmount;
     payment.refundReason = reason;
-    
+
     // Update status based on full or partial refund
     if (payment.refundedAmount >= payment.amount) {
-      payment.status = 'refunded';
+      payment.status = "refunded";
     } else {
-      payment.status = 'partially_refunded';
+      payment.status = "partially_refunded";
     }
-    
+
     await payment.save();
-    
+
     return payment;
   } catch (error) {
-    console.error('Error in processRefund:', error);
+    console.error("Error in processRefund:", error);
     throw error;
   }
 };
@@ -173,12 +175,12 @@ const updateUserPaymentMethod = async (
     if (!paymentMethod.card) {
       return null;
     }
-    
+
     const user = await User.findById(userId);
     if (!user) {
       return null;
     }
-    
+
     user.paymentMethod = {
       id: paymentMethod.id,
       brand: paymentMethod.card.brand,
@@ -186,11 +188,11 @@ const updateUserPaymentMethod = async (
       expMonth: paymentMethod.card.exp_month,
       expYear: paymentMethod.card.exp_year,
     };
-    
+
     await user.save();
     return user;
   } catch (error) {
-    console.error('Error in updateUserPaymentMethod:', error);
+    console.error("Error in updateUserPaymentMethod:", error);
     throw error;
   }
 };
@@ -198,11 +200,13 @@ const updateUserPaymentMethod = async (
 /**
  * Get payment history for a user
  */
-export const getUserPaymentHistory = async (userId: string): Promise<IPayment[]> => {
+export const getUserPaymentHistory = async (
+  userId: string
+): Promise<IPayment[]> => {
   try {
     return await Payment.find({ userId }).sort({ createdAt: -1 });
   } catch (error) {
-    console.error('Error in getUserPaymentHistory:', error);
+    console.error("Error in getUserPaymentHistory:", error);
     throw error;
   }
 };
@@ -218,7 +222,7 @@ export const createSubscription = async (
   try {
     const user = await User.findById(userId);
     if (!user) {
-      throw new Error('User not found');
+      throw new Error("User not found");
     }
 
     // Get or create customer
@@ -240,21 +244,28 @@ export const createSubscription = async (
     const subscription = await stripe.subscriptions.create({
       customer: customerId,
       items: [{ price: priceId }],
-      expand: ['latest_invoice.payment_intent'],
-      payment_behavior: 'default_incomplete',
+      expand: ["latest_invoice.payment_intent"],
+      payment_behavior: "default_incomplete",
       payment_settings: {
-        payment_method_types: ['card'],
-        save_default_payment_method: 'on_subscription',
+        payment_method_types: ["card"],
+        save_default_payment_method: "on_subscription",
       },
     });
 
     // Update user with subscription info
     user.subscription = {
-      status: subscription.status === 'active' ? 'active' : 
-              subscription.status === 'canceled' ? 'canceled' : 
-              subscription.status === 'past_due' ? 'past_due' : 
-              subscription.status === 'trialing' ? 'trialing' : 
-              subscription.status === 'unpaid' ? 'unpaid' : undefined,
+      status:
+        subscription.status === "active"
+          ? "active"
+          : subscription.status === "canceled"
+          ? "canceled"
+          : subscription.status === "past_due"
+          ? "past_due"
+          : subscription.status === "trialing"
+          ? "trialing"
+          : subscription.status === "unpaid"
+          ? "unpaid"
+          : undefined,
       planId: priceId,
       currentPeriodEnd: new Date(subscription.current_period_end * 1000),
     };
@@ -269,10 +280,11 @@ export const createSubscription = async (
     return {
       subscriptionId: subscription.id,
       status: subscription.status,
-      clientSecret: (subscription.latest_invoice as any)?.payment_intent?.client_secret,
+      clientSecret: (subscription.latest_invoice as any)?.payment_intent
+        ?.client_secret,
     };
   } catch (error) {
-    console.error('Error in createSubscription:', error);
+    console.error("Error in createSubscription:", error);
     throw error;
   }
 };
@@ -284,28 +296,31 @@ export const cancelSubscription = async (userId: string): Promise<any> => {
   try {
     const user = await User.findById(userId);
     if (!user || !user.stripeCustomerId) {
-      throw new Error('User or customer ID not found');
+      throw new Error("User or customer ID not found");
     }
 
     // Get current subscriptions
     const subscriptions = await stripe.subscriptions.list({
       customer: user.stripeCustomerId,
-      status: 'active',
+      status: "active",
     });
 
     if (subscriptions.data.length === 0) {
-      throw new Error('No active subscription found');
+      throw new Error("No active subscription found");
     }
 
     // Cancel the subscription at period end
-    const subscription = await stripe.subscriptions.update(subscriptions.data[0].id, {
-      cancel_at_period_end: true,
-    });
+    const subscription = await stripe.subscriptions.update(
+      subscriptions.data[0].id,
+      {
+        cancel_at_period_end: true,
+      }
+    );
 
     // Update user's subscription status
     user.subscription = {
       ...user.subscription,
-      status: 'canceled',
+      status: "canceled",
     };
 
     await user.save();
@@ -316,7 +331,7 @@ export const cancelSubscription = async (userId: string): Promise<any> => {
       cancelAtPeriodEnd: subscription.cancel_at_period_end,
     };
   } catch (error) {
-    console.error('Error in cancelSubscription:', error);
+    console.error("Error in cancelSubscription:", error);
     throw error;
   }
 };
@@ -326,15 +341,22 @@ export const cancelSubscription = async (userId: string): Promise<any> => {
  */
 export const getSubscriptionDetails = async (userId: string): Promise<any> => {
   try {
+    let customerId = undefined;
     const user = await User.findById(userId);
-    if (!user || !user.stripeCustomerId) {
-      throw new Error('User or customer ID not found');
+    if (!user) {
+      throw new Error("User not found");
     }
-
+    if (!user.stripeCustomerId) {
+      customerId = await getOrCreateCustomer(userId);
+    }
+    if (!user.stripeCustomerId) {
+      throw new Error("Customer ID not found");
+    }
+    console.log({ customerId: user.stripeCustomerId });
     // Get current subscriptions
     const subscriptions = await stripe.subscriptions.list({
-      customer: user.stripeCustomerId,
-      expand: ['data.default_payment_method'],
+      customer: customerId,
+      expand: ["data.default_payment_method"],
     });
 
     if (subscriptions.data.length === 0) {
@@ -342,7 +364,7 @@ export const getSubscriptionDetails = async (userId: string): Promise<any> => {
     }
 
     const subscription = subscriptions.data[0];
-    
+
     return {
       hasSubscription: true,
       subscriptionId: subscription.id,
@@ -353,7 +375,7 @@ export const getSubscriptionDetails = async (userId: string): Promise<any> => {
       paymentMethod: user.paymentMethod,
     };
   } catch (error) {
-    console.error('Error in getSubscriptionDetails:', error);
+    console.error("Error in getSubscriptionDetails:", error);
     throw error;
   }
-}; 
+};
