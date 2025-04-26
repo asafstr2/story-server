@@ -269,9 +269,23 @@ export const createSubscription = async (
           ? "unpaid"
           : undefined,
       planId: priceId,
+      type:
+        priceId === PLUS_PRICE_ID
+          ? "plus"
+          : priceId === PRO_PRICE_ID
+          ? "pro"
+          : priceId === PREMIUM_PRICE_ID
+          ? "premium"
+          : undefined,
       currentPeriodEnd: new Date(subscription.current_period_end * 1000),
     };
-
+    user.billingAddress = {
+      country: user.billingAddress?.country,
+      city: user.billingAddress?.city,
+      state: user.billingAddress?.state,
+      postalCode: user.billingAddress?.postalCode,
+      address: user.billingAddress?.address,
+    };
     // Save the updated user
     await user.save();
 
