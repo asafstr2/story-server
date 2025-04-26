@@ -24,6 +24,20 @@ export const generateStory = async (
       return res.status(401).json({ message: "Authentication required" });
     }
 
+    // Check if user has a paid subscription
+    const hasPaidSubscription = user.subscription?.status === 'active';
+    
+    // If user doesn't have a paid subscription, check story count
+    if (!hasPaidSubscription) {
+      const storyCount = await Story.countDocuments({ userId: user._id });
+      if (storyCount >= 2) {
+        return res.status(403).json({ 
+          message: "Free users are limited to 2 stories. Please upgrade your subscription to create more.",
+          limitReached: true
+        });
+      }
+    }
+
     if (!req.file) {
       throw new Error("No image file uploaded");
     }
