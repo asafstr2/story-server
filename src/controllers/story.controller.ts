@@ -61,6 +61,7 @@ export const generateStory = async (
   try {
     // Get the authenticated user
     const user = req.user as IUser;
+    const style = req.body.style;
     if (!user) {
       return res.status(401).json({ message: "Authentication required" });
     }
@@ -162,7 +163,12 @@ export const generateStory = async (
     console.log("processing images - starting  30% of story");
     const imagePromises: Promise<CloudinaryAsset>[] = paragraphs.map(
       (paragraph: string) =>
-        convertImageToGhibli(base64Image, req.body.name ?? "Maya", paragraph)
+        convertImageToGhibli(
+          base64Image,
+          req.body.name ?? "Maya",
+          paragraph,
+          style
+        )
     );
 
     const images = await Promise.all(imagePromises);
@@ -226,6 +232,7 @@ const convertImageToGhibli = async (
 ): Promise<CloudinaryAsset> => {
   try {
     // Set defaults for options
+    console.log(`[sub process] generating image in ${style} style 1% done`);
     const imageQuality = options.quality || "hd";
     const imageSize = options.size || "1024x1024";
     const forceRefresh = options.forceRefresh || false;
@@ -248,6 +255,7 @@ const convertImageToGhibli = async (
 
     // Select art style template
     const styleTemplate = artStyleTemplates[style];
+    console.log(`[sub process] generating image in ${style} style 10% done`);
 
     // Run description and prompt generation in parallel
     const [imageDescription, paragraphAnalysis] = await Promise.all([
@@ -296,6 +304,7 @@ const convertImageToGhibli = async (
         ],
       }),
     ]);
+    console.log(`[sub process] generating image in ${style} style 50% done`);
 
     // Extract results
     const description =
@@ -337,13 +346,10 @@ Your prompt should be highly detailed, emphasizing characteristic elements of ${
     const finalPrompt = `${combinedPrompt}\n\n${styleTemplate.styleGuide}\n\nMain character name: ${username}`;
 
     // Limit prompt length to 3900 characters to avoid "string too long" errors (max is 4000)
-    const limitedPrompt = finalPrompt.length > 3900 
-      ? finalPrompt.substring(0, 3900) 
-      : finalPrompt;
-
+    const limitedPrompt =
+      finalPrompt.length > 3900 ? finalPrompt.substring(0, 3900) : finalPrompt;
     console.log(
-      "Generating illustration with prompt:",
-      limitedPrompt.substring(0, 100) + "..."
+      `[sub process] Generating illustration with prompt with ${style} style 70% done`
     );
 
     // Generate styled image
@@ -364,6 +370,10 @@ Your prompt should be highly detailed, emphasizing characteristic elements of ${
     if (!generatedImage.data || generatedImage.data.length === 0) {
       throw new Error("Image generation returned no results");
     }
+    console.log(
+      `[sub process] Generating images with prompt with ${style} id done  style 90% done`
+    );
+    console.log(`[sub process] start uploading to cloudinery 90%`);
 
     const imageUrls = generatedImage.data.map((img: any) => img.url);
 
@@ -403,6 +413,7 @@ Your prompt should be highly detailed, emphasizing characteristic elements of ${
         );
       }
     }
+    console.log(`[sub process]  uploading to cloudinery done  90%`);
 
     // Store result in cache - if we got here, uploadedImage must be defined
     if (!uploadedImage || uploadedImage.length === 0) {
@@ -411,6 +422,7 @@ Your prompt should be highly detailed, emphasizing characteristic elements of ${
 
     const result = uploadedImage[0] as CloudinaryAsset;
     imageCache.set(cacheKey, result);
+    console.log(`[sub process] story images are done  100%`);
 
     return result;
   } catch (error: any) {
