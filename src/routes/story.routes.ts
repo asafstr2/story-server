@@ -1,7 +1,13 @@
-import { Router } from 'express';
-import multer from 'multer';
-import { generateStory, getStory, getUserStories, selectedImageCloudineryUpload, generatePdf } from '../controllers/story.controller';
-import { authWithLogging } from '../controllers/passport';
+import { Router } from "express";
+import multer from "multer";
+import {
+  generateStory,
+  getStory,
+  getUserStories,
+  selectedImageCloudineryUpload,
+  generatePdf,
+} from "../controllers/story.controller";
+import { authWithLogging } from "../controllers/passport";
 
 const router = Router();
 
@@ -13,21 +19,30 @@ const upload = multer({
     fileSize: 5 * 1024 * 1024, // 5MB limit
   },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) {
+    if (file.mimetype.startsWith("image/")) {
       cb(null, true);
     } else {
-      cb(new Error('Only image files are allowed'));
+      cb(new Error("Only image files are allowed"));
     }
   },
 });
 
 // Protected routes (require authentication)
-router.post('/create', authWithLogging('jwt', {}), upload.single('image'), generateStory);
-router.post('/upload-images', authWithLogging('jwt', {}), selectedImageCloudineryUpload);
-router.get('/user/stories', authWithLogging('jwt', {}), getUserStories);
+router.post(
+  "/create",
+  authWithLogging("jwt", {}),
+  upload.single("image"),
+  generateStory
+);
+router.post(
+  "/upload-images",
+  authWithLogging("jwt", {}),
+  selectedImageCloudineryUpload
+);
+router.get("/user/stories", authWithLogging("jwt", {}), getUserStories);
 
 // Public routes
-router.get('/:id', getStory);
-router.get('/:id/pdf', generatePdf);
+router.get("/:id", authWithLogging("jwt", {}), getStory);
+router.get("/:id/pdf", authWithLogging("jwt", {}), generatePdf);
 
-export default router; 
+export default router;

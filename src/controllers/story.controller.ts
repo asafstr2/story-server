@@ -71,18 +71,14 @@ export const generateStory = async (
     if (!hasPaidSubscription) {
       const subscriptionDetails = await getSubscriptionDetails(user._id);
       if (subscriptionDetails.hasSubscription) {
-        hasPaidSubscription = subscriptionDetails.hasSubscription;
-        user.subscription = subscriptionDetails;
+        hasPaidSubscription = subscriptionDetails.hasSubscription === "active";
+        user.subscription = subscriptionDetails.hasSubscription;
         await user.save();
       }
     }
 
     const subscriptionType = user.subscription?.type;
-    console.log({
-      subscriptionType,
-      hasPaidSubscription,
-      status: user.subscription?.status,
-    });
+
     // If user doesn't have a paid subscription, check story count
     const storyCount = await Story.countDocuments({ userId: user._id });
     if (!hasPaidSubscription) {
@@ -509,6 +505,30 @@ export const generatePdf = async (
 
     // Fetch the story from the database
     const story = await Story.findById(storyId);
+    // Get the authenticated user
+    const user = req.user as IUser;
+    if (!user) {
+      return res.status(401).json({ message: "Authentication required" });
+    }
+
+    // Check if user has an active subscription
+    let hasPaidSubscription = user.subscription?.status === "active";
+    if (!hasPaidSubscription) {
+      const subscriptionDetails = await getSubscriptionDetails(user._id);
+      if (subscriptionDetails.hasSubscription) {
+        hasPaidSubscription = subscriptionDetails.hasSubscription === "active";
+        user.subscription = subscriptionDetails.hasSubscription;
+        await user.save();
+      }
+      if (!hasPaidSubscription) {
+        const error = new Error(
+          "Active subscription required to download PDFs"
+        ) as CustomError;
+        error.statusCode = 403;
+        throw error;
+      }
+    }
+
     if (!story) {
       const error = new Error("Story not found") as CustomError;
       error.statusCode = 404;
