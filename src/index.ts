@@ -7,6 +7,7 @@ import morgan from "morgan";
 import storyRoutes from "./routes/story.routes";
 import paymentRoutes from "./routes/paymentRoutes";
 import authRoutes from "./routes/authRoutes";
+import userRoutes from "./routes/userRoutes";
 import healthRoutes from "./routes/healthRoutes";
 import subscriptionRoutes from "./routes/subscriptionRoutes";
 import { errorHandler } from "./middleware/error.middleware";
@@ -27,6 +28,7 @@ app.use("/health", healthRoutes);
 app.use("/api/stories", storyRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/user", userRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);
 
 // Error handling

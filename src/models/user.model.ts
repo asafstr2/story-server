@@ -6,6 +6,9 @@ export interface IUser extends Document {
   googleOAuthId?: string;
   profilePicture?: string;
   name?: string;
+  bio?: string;
+  location?: string;
+  website?: string;
 
   // Stripe payment fields
   stripeCustomerId?: string;
@@ -57,6 +60,15 @@ const userSchema = new Schema<IUser>(
       type: String,
     },
     name: {
+      type: String,
+    },
+    bio: {
+      type: String,
+    },
+    location: {
+      type: String, 
+    },
+    website: {
       type: String,
     },
 
