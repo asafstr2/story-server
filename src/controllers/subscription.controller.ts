@@ -2,7 +2,8 @@ import { Request, Response, NextFunction } from "express";
 import {
   createSubscription,
   cancelSubscription,
-  getSubscriptionDetails
+  getSubscriptionDetails,
+  SubscriptionPlan
 } from "../services/stripe.service";
 import { IUser } from "../models/user.model";
 
@@ -20,16 +21,21 @@ export const createUserSubscription = async (
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const { paymentMethodId, priceId } = req.body;
+    const { paymentMethodId, planType = SubscriptionPlan.PREMIUM } = req.body;
 
     if (!paymentMethodId) {
       return res.status(400).json({ message: "Payment method ID is required" });
     }
 
+    // Validate plan type
+    if (planType && !Object.values(SubscriptionPlan).includes(planType as SubscriptionPlan)) {
+      return res.status(400).json({ message: "Invalid subscription plan type" });
+    }
+
     const subscription = await createSubscription(
       user.id,
       paymentMethodId,
-      priceId
+      planType as SubscriptionPlan
     );
 
     res.status(200).json({ subscription });

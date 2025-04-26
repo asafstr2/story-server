@@ -71,7 +71,13 @@ const userSchema = new Schema<IUser>(
       },
       planId: String,
       currentPeriodEnd: Date,
-      type: String,
+      type: {
+        type: String,
+        enum: ["free", "plus", "pro", "premium"],
+        default: "free",
+        lowercase: true,
+
+      },
     },
     paymentMethod: {
       id: String,

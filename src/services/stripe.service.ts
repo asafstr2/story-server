@@ -14,6 +14,27 @@ const PLUS_PRICE_ID = process.env.STRIPE_PLUS_PRICE_ID || "";
 const PREMIUM_PRICE_ID = process.env.STRIPE_PREMIUM_PRICE_ID || "";
 const PRO_PRICE_ID = process.env.STRIPE_PRO_PRICE_ID || "";
 
+// Subscription plan types
+export enum SubscriptionPlan {
+  PLUS = "plus",
+  PREMIUM = "premium",
+  PRO = "pro"
+}
+
+// Get price ID based on plan type
+export const getPriceIdForPlan = (plan: SubscriptionPlan): string => {
+  switch (plan) {
+    case SubscriptionPlan.PLUS:
+      return PLUS_PRICE_ID;
+    case SubscriptionPlan.PREMIUM:
+      return PREMIUM_PRICE_ID;
+    case SubscriptionPlan.PRO:
+      return PRO_PRICE_ID;
+    default:
+      return PLUS_PRICE_ID; // Default to plus as most basic paid plan
+  }
+};
+
 /**
  * Create or retrieve a Stripe customer for a user
  */
@@ -219,12 +240,19 @@ export const getUserPaymentHistory = async (
 export const createSubscription = async (
   userId: string,
   paymentMethodId: string,
-  priceId: string = PLUS_PRICE_ID
+  planType: SubscriptionPlan = SubscriptionPlan.PREMIUM
 ): Promise<any> => {
   try {
     const user = await User.findById(userId);
     if (!user) {
       throw new Error("User not found");
+    }
+
+    // Get price ID for the selected plan
+    const priceId = getPriceIdForPlan(planType);
+    
+    if (!priceId) {
+      throw new Error(`Invalid price ID for plan type: ${planType}`);
     }
 
     // Get or create customer
@@ -251,6 +279,10 @@ export const createSubscription = async (
       payment_settings: {
         payment_method_types: ["card"],
         save_default_payment_method: "on_subscription",
+      },
+      metadata: {
+        userId,
+        planType,
       },
     });
 
@@ -389,6 +421,8 @@ export const getSubscriptionDetails = async (userId: string): Promise<any> => {
       cancelAtPeriodEnd: subscription.cancel_at_period_end,
       priceId: subscription.items.data[0].price.id,
       paymentMethod: user.paymentMethod,
+      billingAddress: user.billingAddress,
+      planType: user.subscription?.type,
     };
   } catch (error) {
     console.error("Error in getSubscriptionDetails:", error);
