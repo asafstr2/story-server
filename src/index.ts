@@ -12,7 +12,8 @@ import { errorHandler } from "./middleware/error.middleware";
 
 
 const app = express();
-const PORT = process.env.PORT || 8085;
+const PORT = process.env.PORT ;
+const CLIENT_URL = process.env.CLIENT_URL;
 
 // Middleware
 app.use(cors());
@@ -38,7 +39,7 @@ mongoose
     console.log("Connected to MongoDB");
     app.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
-      console.log(`Health check available at http://localhost:${PORT}/health`);
+      console.log(`Health check available at ${CLIENT_URL}/health`);
     });
   })
   .catch((error) => {
