@@ -21,6 +21,14 @@ export enum SubscriptionPlan {
   PRO = "pro",
 }
 
+export enum SubscriptionStatus {
+  ACTIVE = "active",
+  CANCELED = "canceled",
+  PAST_DUE = "past_due",
+  TRIALING = "trialing",
+  UNPAID = "unpaid"
+}
+
 const getPlanPrice = (plan: SubscriptionPlan): string => {
   switch (plan) {
     case SubscriptionPlan.PLUS:
@@ -400,7 +408,7 @@ export const cancelSubscription = async (userId: string): Promise<any> => {
 /**
  * Get subscription details for a user
  */
-export const getSubscriptionDetails = async (userId: string): Promise<any> => {
+export const getSubscriptionDetails = async (userId: string) => {
   try {
     let customerId = undefined;
     const user = await User.findById(userId);
@@ -433,7 +441,7 @@ export const getSubscriptionDetails = async (userId: string): Promise<any> => {
     return {
       hasSubscription: true,
       subscriptionId: subscription.id,
-      status: subscription.status,
+      status: subscription.status as SubscriptionStatus,
       currentPeriodEnd: new Date(subscription.current_period_end * 1000),
       cancelAtPeriodEnd: subscription.cancel_at_period_end,
       priceId: subscription.items.data[0].price.id,

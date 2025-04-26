@@ -10,7 +10,7 @@ import PDFDocument from "pdfkit";
 import axios from "axios";
 import { createHash } from "crypto";
 import NodeCache from "node-cache";
-import { getSubscriptionDetails } from "../services/stripe.service";
+import { getSubscriptionDetails, SubscriptionStatus } from "../services/stripe.service";
 
 //@ts-ignore
 const openai = new OpenAI();
@@ -72,7 +72,11 @@ export const generateStory = async (
       const subscriptionDetails = await getSubscriptionDetails(user._id);
       if (subscriptionDetails.hasSubscription) {
         hasPaidSubscription = subscriptionDetails.hasSubscription;
-        user.subscription = subscriptionDetails.status;
+        if (!user.subscription) {
+          user.subscription = { status: subscriptionDetails.status };
+        } else {
+          user.subscription.status = subscriptionDetails.status;
+        }
         await user.save();
       }
     }
@@ -517,7 +521,11 @@ export const generatePdf = async (
       const subscriptionDetails = await getSubscriptionDetails(user._id);
       if (subscriptionDetails.hasSubscription) {
         hasPaidSubscription = subscriptionDetails.hasSubscription;
-        user.subscription = subscriptionDetails.status;
+        if (!user.subscription) {
+          user.subscription = { status: subscriptionDetails.status };
+        } else {
+          user.subscription.status = subscriptionDetails.status;
+        }
         await user.save();
       }
       if (!hasPaidSubscription) {
