@@ -18,8 +18,21 @@ const PRO_PRICE_ID = process.env.STRIPE_PRO_PRICE_ID || "";
 export enum SubscriptionPlan {
   PLUS = "plus",
   PREMIUM = "premium",
-  PRO = "pro"
+  PRO = "pro",
 }
+
+const getPlanPrice = (plan: SubscriptionPlan): string => {
+  switch (plan) {
+    case SubscriptionPlan.PLUS:
+      return `${process.env.PLUS_PRICE}$`;
+    case SubscriptionPlan.PRO:
+      return `${process.env.PRO_PRICE}$`;
+    case SubscriptionPlan.PREMIUM:
+      return `${process.env.PREMIUM_PRICE}$`;
+    default:
+      return `${process.env.PLUS_PRICE}$`;
+  }
+};
 
 // Get price ID based on plan type
 export const getPriceIdForPlan = (plan: SubscriptionPlan): string => {
@@ -250,7 +263,7 @@ export const createSubscription = async (
 
     // Get price ID for the selected plan
     const priceId = getPriceIdForPlan(planType);
-    
+
     if (!priceId) {
       throw new Error(`Invalid price ID for plan type: ${planType}`);
     }
@@ -412,7 +425,11 @@ export const getSubscriptionDetails = async (userId: string): Promise<any> => {
     }
 
     const subscription = subscriptions.data[0];
-
+    const planPrice = getPlanPrice(user.subscription?.type as SubscriptionPlan);
+    const allPlans = [SubscriptionPlan.PLUS, SubscriptionPlan.PRO, SubscriptionPlan.PREMIUM].map((plan) => ({
+      planType: plan,
+      planPrice: getPlanPrice(plan),
+    }));
     return {
       hasSubscription: true,
       subscriptionId: subscription.id,
@@ -423,6 +440,8 @@ export const getSubscriptionDetails = async (userId: string): Promise<any> => {
       paymentMethod: user.paymentMethod,
       billingAddress: user.billingAddress,
       planType: user.subscription?.type,
+      planPrice: planPrice,
+      allPlans: allPlans
     };
   } catch (error) {
     console.error("Error in getSubscriptionDetails:", error);
