@@ -1,0 +1,18 @@
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies including development dependencies
+RUN npm install
+
+# Copy source code
+COPY . .
+
+# Expose the port
+EXPOSE 8085
+
+# Start the application in development mode with hot reloading
+CMD ["npm", "run", "dev"] 
